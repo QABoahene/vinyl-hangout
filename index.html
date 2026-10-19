@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vinyl Listening Hangout</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <h1 id="siteTitle">Vinyl Listening Hangout</h1>
+      <p id="tagline" class="muted"></p>
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-view="collection" aria-selected="true">Collection</button>
+        <button role="tab" data-view="lineup" aria-selected="false">Lineup</button>
+        <button role="tab" data-view="games" aria-selected="false">Games</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="nowSpinning" class="now" hidden></section>
+
+    <section id="view-collection" class="view">
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search title, artist, song…" aria-label="Search">
+        <select id="genre" aria-label="Genre"><option value="">All genres</option></select>
+        <select id="sort" aria-label="Sort">
+          <option value="title">Title A–Z</option>
+          <option value="artist">Artist A–Z</option>
+          <option value="year-asc">Oldest first</option>
+          <option value="year-desc">Newest first</option>
+        </select>
+        <button id="surprise" class="btn">Surprise me</button>
+      </div>
+      <p id="count" class="muted"></p>
+      <div id="grid" class="grid"></div>
+      <p id="status" class="muted"></p>
+    </section>
+
+    <section id="view-lineup" class="view" hidden>
+      <h2>Tonight's lineup</h2>
+      <p class="muted">Who is exploring which record. Tap a record to read about it.</p>
+      <div class="row">
+        <button id="shuffleLineup" class="btn">Shuffle order</button>
+        <button id="refresh" class="btn ghost">Refresh</button>
+      </div>
+      <ol id="lineup" class="lineup"></ol>
+    </section>
+
+    <section id="view-games" class="view" hidden>
+      <div class="gamebar">
+        <button class="btn" data-game="cover">Guess the cover</button>
+        <button class="btn" data-game="track">Whose track?</button>
+        <button class="btn" data-game="year">Older or newer?</button>
+        <button class="btn" data-game="spinner">Who goes next?</button>
+      </div>
+      <div id="gameArea" class="gamearea"><p class="muted">Pick a game above.</p></div>
+    </section>
+  </main>
+
+  <dialog id="detail">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <div id="detailBody"></div>
+  </dialog>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script src="games.js"></script>
+</body>
+</html>
