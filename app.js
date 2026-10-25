@@ -142,16 +142,37 @@
     $("#detail").showModal();
   }
 
+  // This browser's own picks. The sheet is the real record; these only bridge the few minutes
+  // before Google's published CSV catches up, and hold the token that lets this guest remove a pick.
+  const PENDING_MS = 10 * 60 * 1000;
+  const readMine = () => { try { return JSON.parse(localStorage.getItem("vinyl.mine") || "[]"); } catch { return []; } };
+  const writeMine = (m) => { try { localStorage.setItem("vinyl.mine", JSON.stringify(m)); } catch {} };
+  const age = (iso) => Date.now() - new Date(iso).getTime();
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+  async function post(body) {
+    if (!cfg.picksPostUrl) return;
+    // text/plain avoids a CORS preflight, which Apps Script web apps cannot answer.
+    await fetch(cfg.picksPostUrl, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(body) });
+  }
+
   async function submitPick(p) {
-    const pick = { ...p, timestamp: new Date().toISOString() };
-    if (cfg.picksPostUrl) {
-      // text/plain avoids a CORS preflight, which Apps Script web apps cannot answer.
-      await fetch(cfg.picksPostUrl, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(pick) });
-    }
-    const mine = JSON.parse(localStorage.getItem("vinyl.picks") || "[]");
-    mine.push(pick);
-    localStorage.setItem("vinyl.picks", JSON.stringify(mine));
+    const pick = { ...p, pick_id: uid(), timestamp: new Date().toISOString() };
+    const token = uid();
+    await post({ action: "add", ...pick, token });
+    writeMine([...readMine(), { ...pick, token }]);
     state.picks.push(pick);
+  }
+
+  async function removePick(p) {
+    const mine = readMine();
+    const m = mine.find((x) => x.pick_id === p.pick_id);
+    if (!m) return;
+    await post({ action: "delete", pick_id: m.pick_id, token: m.token });
+    m.removedAt = new Date().toISOString(); // keep hiding it until the published CSV drops the row
+    writeMine(mine);
+    state.picks = state.picks.filter((x) => x.pick_id !== p.pick_id);
+    renderLineup();
   }
 
   // ---------- Lineup ----------
@@ -164,27 +185,47 @@
     if (state.lineupOrder) list = state.lineupOrder.filter((p) => list.includes(p)).concat(list.filter((p) => !state.lineupOrder.includes(p)));
     const ol = $("#lineup");
     if (!list.length) { ol.replaceChildren(el("p", { class: "muted", text: "No picks yet. Open a record and add yourself." })); return; }
+    const mineIds = new Set(readMine().map((m) => m.pick_id));
     ol.replaceChildren(...list.map((p) => {
       const r = state.records.find((x) => x.id === p.record_id);
       if (!r) return null;
+      const rm = p.pick_id && mineIds.has(p.pick_id)
+        ? el("button", { class: "btn ghost rm", text: "Remove", "aria-label": `Remove ${p.name}'s pick`, onclick: (e) => {
+            e.stopPropagation();
+            if (confirm(`Remove "${r.title}" from the lineup?`)) removePick(p);
+          } })
+        : null;
       return el("li", { onclick: () => openDetail(r) }, cover(r),
         el("div", {}, el("div", { class: "who", text: p.name }),
           el("div", { text: `${r.title} · ${r.artist}` }),
-          p.note ? el("div", { class: "muted", text: p.note }) : null));
+          p.note ? el("div", { class: "muted", text: p.note }) : null), rm);
     }));
     state.lineupCurrent = list;
   }
 
   async function loadPicks() {
-    const local = JSON.parse(localStorage.getItem("vinyl.picks") || "[]");
-    let remote = [];
-    if (cfg.picksCsvUrl) {
-      try { remote = (await loadCsv(cfg.picksCsvUrl)).map((r) => ({ name: r.name, record_id: r.record_id, note: r.note, timestamp: r.timestamp })); }
-      catch { /* fall back to local picks only */ }
+    try { localStorage.removeItem("vinyl.picks"); } catch {} // old format that never expired
+    let mine = readMine();
+    if (!cfg.picksCsvUrl) { // no sheet: this browser is the only record
+      state.picks = mine.filter((m) => !m.removedAt);
+      return;
     }
-    const key = (p) => p.name.toLowerCase() + "|" + p.record_id;
-    const have = new Set(remote.map(key));
-    state.picks = remote.concat(local.filter((p) => !have.has(key(p))));
+    let remote;
+    try {
+      remote = (await loadCsv(cfg.picksCsvUrl)).map((r) => ({ name: r.name, record_id: r.record_id, note: r.note, timestamp: r.timestamp, pick_id: r.pick_id }));
+    } catch { // sheet unreachable: show what this browser knows, change nothing
+      state.picks = mine.filter((m) => !m.removedAt);
+      return;
+    }
+    const inSheet = new Set(remote.map((p) => p.pick_id).filter(Boolean));
+    // Keep a local pick while the sheet still has it, or while it's fresh enough that the CSV may lag.
+    // Anything else was deleted in the sheet (or reset), so forget it.
+    mine = mine.filter((m) => m.removedAt ? inSheet.has(m.pick_id) && age(m.removedAt) < PENDING_MS
+                                          : inSheet.has(m.pick_id) || age(m.timestamp) < PENDING_MS);
+    writeMine(mine);
+    const removed = new Set(mine.filter((m) => m.removedAt).map((m) => m.pick_id));
+    state.picks = remote.filter((p) => !removed.has(p.pick_id))
+      .concat(mine.filter((m) => !m.removedAt && !inSheet.has(m.pick_id)));
   }
 
   // ---------- Views ----------

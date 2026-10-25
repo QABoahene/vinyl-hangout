@@ -72,6 +72,7 @@ dialog::backdrop { background: rgba(20, 14, 6, .7); }
 .lineup { padding-left: 0; list-style: none; }
 .lineup li { display: flex; gap: 12px; align-items: center; padding: 12px; margin-bottom: 14px; background: var(--card); border: var(--px) solid var(--line); box-shadow: 4px 4px 0 var(--line); cursor: pointer; }
 .lineup .cover { width: 60px; font-size: .7rem; flex: none; box-shadow: none; }
+.lineup .rm { margin-left: auto; flex: none; padding: 8px 10px; font-size: .5rem; box-shadow: none; }
 .lineup .who { font: .65rem var(--pixel); margin-bottom: 4px; }
 
 .gamebar { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0; }

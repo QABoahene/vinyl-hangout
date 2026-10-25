@@ -27,20 +27,17 @@ mkdir -p covers && for f in raw/*.jpg; do sips -Z 800 "$f" --out "covers/$(basen
 ```
 
 ## 3. Guest picks (free)
-1. Add a second tab `Picks` with headers `timestamp, name, record_id, note`.
-2. In the sheet: **Extensions > Apps Script**, paste:
-```js
-function doPost(e) {
-  const d = JSON.parse(e.postData.contents);
-  const name = String(d.name || "").slice(0, 40);
-  if (!name || !d.record_id) return ContentService.createTextOutput("bad");
-  SpreadsheetApp.getActive().getSheetByName("Picks")
-    .appendRow([new Date(), name, String(d.record_id), String(d.note || "").slice(0, 200)]);
-  return ContentService.createTextOutput("ok");
-}
-```
+1. Add a second tab `Picks` with headers `timestamp, name, record_id, note, pick_id`.
+2. In the sheet: **Extensions > Apps Script**, and paste the contents of [apps-script.gs](apps-script.gs).
 3. **Deploy > New deployment > Web app**, execute as *Me*, access *Anyone*. Paste the URL as `picksPostUrl`.
+   When you change the script later, use **Deploy > Manage deployments > Edit > Version: New version** so the URL stays the same.
 4. Publish the `Picks` tab as CSV too and paste it as `picksCsvUrl`.
+
+How picks behave:
+- The Picks tab is the record. Delete a row there and it disappears from everyone's lineup within about 5 minutes.
+- A guest's browser keeps its own picks for up to 10 minutes, so they show up straight away while Google's CSV catches up.
+- Guests can remove their own picks from the Lineup. The removal key lives in a hidden `Tokens` tab that isn't published.
+- To start fresh before the event, reload the sheet and use the **Hangout > Clear all picks** menu.
 
 ## 4. Deploy
 Push this folder to a GitHub repo and enable **Settings > Pages**, or drag the folder onto Cloudflare Pages. Make a QR code of the URL to print for the event.
