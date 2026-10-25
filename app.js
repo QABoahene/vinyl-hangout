@@ -51,7 +51,6 @@
     genre: r.genre, coverFile: r.cover_file,
     tracks: r.tracks ? r.tracks.split("|").map((t) => t.trim()).filter(Boolean) : [],
     description: r.description, spotify: r.spotify_url, youtube: r.youtube_url,
-    spinning: /^true$/i.test(r.now_spinning),
   });
 
   const safeUrl = (u) => (/^https?:\/\//i.test(u) ? u : "");
@@ -83,22 +82,49 @@
   function renderGrid() {
     const list = visible();
     const grid = $("#grid");
+    const f = featured();
     grid.replaceChildren(...list.map((r) =>
       el("button", { class: "card", onclick: () => openDetail(r) },
         cover(r),
-        el("div", { class: "t" }, r.title, r.spinning ? el("span", { class: "badge", text: "Spinning" }) : null),
+        el("div", { class: "t" }, r.title, r === f?.rec ? el("span", { class: "badge", text: f.badge }) : null),
         el("div", { class: "a", text: [r.artist, r.year].filter(Boolean).join(" · ") }))));
     $("#count").textContent = `${list.length} of ${state.records.length} records`;
   }
 
+  // Featured record: a random pick that changes every 6 hours. It's derived from the date and
+  // time slot, so everyone visiting in the same slot sees the same record with no server involved.
+  const SLOTS = [
+    { name: "night", badge: "Tonight" }, { name: "morning", badge: "This morning" },
+    { name: "afternoon", badge: "This afternoon" }, { name: "evening", badge: "This evening" },
+  ];
+  function slotKey(d) {
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}#${Math.floor(d.getHours() / 6)}`;
+  }
+  function hash(s) { // FNV-1a, then a murmur3 finalizer so neighbouring slots don't land on neighbouring records
+    let h = 2166136261;
+    for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+    h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+    return h >>> 0;
+  }
+  function featured() {
+    const pool = [...state.records].sort((a, b) => (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0));
+    if (!pool.length) return null;
+    const now = new Date();
+    let i = hash(slotKey(now)) % pool.length;
+    const prev = hash(slotKey(new Date(now - 6 * 3600 * 1000))) % pool.length;
+    if (pool.length > 1 && i === prev) i = (i + 1) % pool.length; // never repeat back to back
+    const slot = SLOTS[Math.floor(now.getHours() / 6)];
+    return { rec: pool[i], label: `Record of the ${slot.name}`, badge: slot.badge };
+  }
+
   function renderNow() {
-    const r = state.records.find((x) => x.spinning);
+    const f = featured();
     const box = $("#nowSpinning");
-    box.hidden = !r;
-    if (!r) return;
+    box.hidden = !f;
+    if (!f) return;
     box.replaceChildren(el("div", { class: "disc" }),
-      el("div", {}, el("small", { text: "Now spinning" }), el("div", { text: `${r.title}` }), el("div", { class: "muted", text: r.artist })));
-    box.onclick = () => openDetail(r);
+      el("div", {}, el("small", { text: f.label }), el("div", { text: f.rec.title }), el("div", { class: "muted", text: f.rec.artist })));
+    box.onclick = () => openDetail(f.rec);
   }
 
   function fillGenres() {
@@ -248,6 +274,11 @@
     }
     await loadPicks();
     fillGenres(); renderGrid(); renderNow();
+    let shownSlot = slotKey(new Date());
+    setInterval(() => { // swap the featured record when the slot changes while the page is open
+      const k = slotKey(new Date());
+      if (k !== shownSlot) { shownSlot = k; renderNow(); renderGrid(); }
+    }, 60 * 1000);
 
     ["#search", "#genre", "#sort"].forEach((s) => $(s).addEventListener("input", renderGrid));
     $("#surprise").onclick = () => { const l = visible(); if (l.length) openDetail(l[Math.floor(Math.random() * l.length)]); };

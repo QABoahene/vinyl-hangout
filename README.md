@@ -16,7 +16,7 @@ Create a Google Sheet with a tab `Records` and these columns (row 1):
 - `id`: any unique value (1, 2, 3…)
 - `tracks`: separate songs with `|`
 - `cover_file`: filename in `covers/` (e.g. `kind-of-blue.jpg`). Empty shows a colored placeholder.
-- `now_spinning`: `TRUE` on the record currently playing
+- `now_spinning`: no longer used. The banner at the top picks a random "Record of the morning/afternoon/evening/night" every 6 hours by itself. You can leave the column or delete it.
 
 Then **File > Share > Publish to web**, choose the `Records` tab and **CSV**, and paste the link in `config.js` as `recordsCsvUrl`. Edits show up after a few minutes, no redeploy needed.
 
